@@ -56,10 +56,11 @@ class AffectiveCaptionDataset(Dataset):
 
 
 class ImageClassificationDataset(Dataset):
-    def __init__(self, image_files, labels=None, img_transform=None, rgb_only=True):
+    def __init__(self, image_files, labels=None, emotions=None,img_transform=None, rgb_only=True):
         super(ImageClassificationDataset, self).__init__()
         self.image_files = image_files
         self.labels = labels
+        self.emotions = emotions
         self.img_transform = img_transform
         self.rgb_only = rgb_only
 
@@ -76,7 +77,11 @@ class ImageClassificationDataset(Dataset):
         if self.labels is not None:
             label = self.labels[index]
 
-        res = {'image': img, 'label': label, 'index': index}
+        emotion = []
+        if self.emotions is not None:
+            emotion = self.emotions[index]
+
+        res = {'image': img, 'label': label, 'emotion': emotion, 'index': index}
         return res
 
     def __len__(self):

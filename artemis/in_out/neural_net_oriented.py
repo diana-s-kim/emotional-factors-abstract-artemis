@@ -178,7 +178,7 @@ def image_emotion_distribution_df_to_pytorch_dataset(df, args, drop_thres=None):
         img_files = g.apply(lambda x : osp.join(args.img_dir, x.art_style,  x.painting + '.jpg'), axis=1)
         img_files.name = 'image_files'
 
-        dataset = ImageClassificationDataset(img_files, g.emotion_distribution,
+        dataset = ImageClassificationDataset(img_files,g.emotion_distribution,g.emotion_label,
                                              img_transform=img_transforms[split])
 
         datasets[split] = dataset
@@ -186,6 +186,48 @@ def image_emotion_distribution_df_to_pytorch_dataset(df, args, drop_thres=None):
         dataloaders[split] = torch.utils.data.DataLoader(dataset=dataset,
                                                          batch_size=b_size,
                                                          shuffle=split=='train',
+                                                         num_workers=n_workers)
+    return dataloaders, datasets
+
+def image_emotion_label_df_to_pytorch_dataset(df, args, drop_thres=None,training=False):
+    """ Convert the pandas dataframe that carries information about images and emotion (distributions) to a
+    dataset that is amenable to deep-learning (e.g., for an image2emotion classifier).
+    :param df:
+    :param args:
+    :param drop_thres: (optional, float) if provided each distribution of the training will only consist of examples
+        for which the maximizing emotion aggregates more than this (drop_thres) mass.
+    :return: pytorch dataloaders & datasets
+    """
+    dataloaders = dict()
+    datasets = dict()
+    img_transforms = image_transformation(args.img_dim, lanczos=args.lanczos)
+
+    if args.num_workers == -1:
+        n_workers = max_io_workers()
+    else:
+        n_workers = args.num_workers
+
+    for split, g in df.groupby('split'):
+        g.reset_index(inplace=True, drop=True)
+
+        if split == 'train' and drop_thres is not None:
+            noise_mask = g['emotion_distribution'].apply(lambda x: max(x) > drop_thres)
+            print('Keeping {} of the training data, since for the rest their emotion-maximizer is too low.'.format(noise_mask.mean()))
+            g = g[noise_mask]
+            g.reset_index(inplace=True, drop=True)
+
+
+        img_files = g.apply(lambda x : osp.join(args.img_dir, x.art_style,  x.painting + '.jpg'), axis=1)
+        img_files.name = 'image_files'
+
+        dataset = ImageClassificationDataset(img_files, g.emotion_label,g.emotion_label,
+                                             img_transform=img_transforms[split])
+
+        datasets[split] = dataset
+        b_size = args.batch_size if split=='train' else args.batch_size * 2
+        dataloaders[split] = torch.utils.data.DataLoader(dataset=dataset,
+                                                         batch_size=b_size,
+                                                         shuffle=(split=='train' and training),
                                                          num_workers=n_workers)
     return dataloaders, datasets
 
